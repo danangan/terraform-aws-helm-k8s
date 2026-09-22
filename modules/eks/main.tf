@@ -39,7 +39,7 @@ module "eks" {
   # create_kms_key = false
 
   eks_managed_node_groups = {
-    "${var.cluster_name}-cpu-nodes" = {
+    cpu = {
       ami_type       = local.cpu_node_ami_type
       instance_types = [var.cpu_instance_type]
 
@@ -47,7 +47,7 @@ module "eks" {
       max_size     = var.cpu_node_group_max_size
       desired_size = var.cpu_node_group_desired_size
     },
-    "${var.cluster_name}-gpu-nodes" = {
+    gpu = {
       ami_type       = "AL2023_x86_64_NVIDIA"
       instance_types = [var.gpu_instance_type]
 

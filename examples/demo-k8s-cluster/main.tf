@@ -58,3 +58,7 @@ module "platform" {
 
   deployment_user_name = "platform-cluster-deployer"
 }
+
+output ecr_repository_url {
+  value       = module.platform.ecr_repository_url
+}
