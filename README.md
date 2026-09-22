@@ -5,18 +5,35 @@
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 [![Helm](https://img.shields.io/badge/Helm-0F1689?style=flat&logo=helm&logoColor=white)](https://helm.sh/)
 
-
-
 A reusable Terraform module that provisions:
 
-- A VPC (public + private subnets across multiple AZs, single NAT gateway)
+- A VPC (public + private subnets across multiple AZs, single NAT gateway by default - multi-AZ NAT is available via `enable_multi_az_nat_gateway`)
 - An EKS cluster with a CPU node group and a GPU node group
 - An ECR repository, and a permissions-boundary-scoped IAM deployment role/user for CI/CD
 - The AWS Load Balancer Controller, so `Ingress` resources with `ingressClassName: alb` provision an ALB out of the box
 
-This terraform module is available in public terraform registry as `danangan/k8s/aws`.
+This module is published on the public Terraform Registry as [`danangan/k8s/aws`](https://registry.terraform.io/modules/danangan/k8s/aws/latest).
 
-Example usage:
+## Contents
+
+- [Requirements](#requirements)
+- [Example usage](#example-usage)
+- [The bootstrap catch](#the-bootstrap-catch)
+- [Deploying pods into the GPU nodes](#deploying-pods-into-the-gpu-nodes)
+- [Project structure](#project-structure)
+- [Trying it out (via the example)](#trying-it-out-via-the-example)
+
+## Requirements
+
+| Name | Version |
+|------|---------|
+| Terraform | >= 1.7.0 (pinned by the example; the module itself does not set `required_version`) |
+| [aws provider](https://registry.terraform.io/providers/hashicorp/aws) | ~> 6.0 |
+| [helm provider](https://registry.terraform.io/providers/hashicorp/helm) | ~> 3.0 |
+
+The full list of inputs and outputs is generated on the [Terraform Registry page](https://registry.terraform.io/modules/danangan/k8s/aws/latest) from `variables.tf` and `outputs.tf`.
+
+## Example usage
 
 ```hcl
 provider "aws" {}
@@ -29,9 +46,9 @@ provider "helm" {
 
     exec = {
       api_version = "client.authentication.k8s.io/v1"
-      # In this example, we are using aws eks command to authenticate to the k8s API
-      # For local operation, you need to authenticate to aws via run "aws login"
-      # In remote machine (e.g. in your CI/CD workflow), you can use static access token and authenticate via "aws configure"
+      # In this example, we are using the `aws eks` command to authenticate to the k8s API.
+      # For local use, authenticate to AWS first, e.g. via "aws login" or "aws sso login".
+      # On a remote machine (e.g. your CI/CD workflow), authenticate via a static access key with "aws configure" instead.
       command     = "aws"
       args        = ["eks", "get-token", "--cluster-name", local.cluster_name, "--region", local.region]
     }
@@ -102,9 +119,9 @@ module "alb_controller" {
 }
 ```
 
-## Deploying Pods into the GPU nodes
+## Deploying pods into the GPU nodes
 
-GPU nodes are expensive, so we should only use it sparingly and only deploy relevant workload into that node. To do so, we are using Kubernetes' [node affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) feature. To deploy pods into the GPU nodes, you'd need to provision your workload with the following tolerations:
+GPU nodes are expensive, so we should only use them sparingly and only deploy relevant workloads onto that node group. To do so, we can leverage Kubernetes' [taints and tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) feature. To deploy pods into the GPU nodes, you'd need to provision your workload with the following tolerations:
 ```
 tolerations:
 - key: "gpu-workload"
@@ -113,7 +130,7 @@ tolerations:
   effect: "NoSchedule"
 ```
 
-You can override this configuration in the TF module with the
+You can override this configuration in the module with `gpu_node_taints` variable.
 
 ## Project structure
 
@@ -124,9 +141,7 @@ modules/            # The sub-modules it's composed of, usable on their own
                     # modules (see "The bootstrap catch" above)
   ...
 examples/
-  demo-k8s-cluster/ # A deployable example: calls this module with
-                    # `source = "../.."` and its own provider config.
-                    # Use this to actually stand up a cluster.
+  demo-k8s-cluster/ # A deployable example of k8s cluster
   demo-app/         # A minimal FastAPI "hello world" service + Helm chart,
                     # deployed onto the example cluster's Ingress.
 ```
@@ -136,13 +151,14 @@ examples/
 ### Prerequisites
 
 - AWS CLI, configured with credentials that can manage the resources below
-- Terraform
+- Terraform (>= 1.7.0)
 - kubectl
 - Helm
+- Docker (or another Docker-compatible CLI, e.g. Podman) - to build and push the demo app image
 
 ### 1. Provision the cluster and the Ingress controller
 
-Log in with the AWS CLI first, so Terraform has credentials to work with - e.g. `aws login` if you use IAM Identity Center, or `aws configure` for a static access key/secret:
+Log in with the AWS CLI first, so Terraform has credentials to work with - e.g. `aws login` (requires AWS CLI >= 2.32.0) for browser-based console credentials, `aws sso login` if you use IAM Identity Center, or `aws configure` for a static access key/secret:
 
 ```
 aws login
@@ -156,18 +172,18 @@ terraform init
 terraform apply
 ```
 
-As mentioned in the section above (see bootrstrapping catch), you'd encounter an error on your first apply. You can just re-run the apply (`terraform apply`) and it should succeess for now. Any subsequent update after the second apply should work as expected.
+As mentioned in [The bootstrap catch](#the-bootstrap-catch) above, you'll hit an error on the first apply - just re-run `terraform apply` and it should succeed. Any subsequent update after the second apply works as expected.
 
 ### 2. Build and deploy the demo app
 
-The demo app (`examples/demo-app/`) is managed with `uv`. Build its image, push it to the ECR repo Terraform just created, and roll it out with Helm:
+The demo app (`examples/demo-app/`) is a FastAPI service built with `uv` inside its Dockerfile (no local `uv` install needed). Build its image, push it to the ECR repo Terraform just created, and roll it out with Helm:
 
 ```
 cd examples/demo-app
 ./deploy.sh
 ```
 
-This tags the image with a timestamp (the ECR repo is immutable-tagged, so re-running always pushes a new tag) and does a `helm upgrade --install app .` pointed at it. Safe to re-run for every new deploy.
+Once the app is deployed, you can access it directly via the ALB DNS name. You can get this information via AWS console or via AWS CLI.
 
 ### Tearing it down
 

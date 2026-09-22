@@ -11,11 +11,10 @@ No access keys are created here on purpose - that would put a long-lived secret 
 
 | Name | Description | Default |
 |---|---|---|
-| `k8s_cluster_name` | Used to name the deployment IAM role | - |
 | `deployment_user_name` | Name of the IAM user | `ai-app-deploy` |
 | `ecr_repository_arn` | ARN of the ECR repository the role may push/pull | - |
 | `cluster_name` | Name of the EKS cluster the role gets edit access to | - |
-| `eks_cluster_arn` | ARN of the EKS cluster - scopes `eks:DescribeCluster` | - |
+| `cluster_arn` | ARN of the EKS cluster - scopes `eks:DescribeCluster` | - |
 
 ## Outputs
 

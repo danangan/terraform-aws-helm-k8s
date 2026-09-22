@@ -6,7 +6,7 @@ An EKS cluster (via `terraform-aws-modules/eks/aws`) with a Graviton (ARM) CPU n
 
 | Name | Description | Default |
 |---|---|---|
-| `k8s_cluster_name` | Name of the EKS cluster | - |
+| `cluster_name` | Name of the EKS cluster | - |
 | `kubernetes_version` | Kubernetes version | `1.33` |
 | `vpc_id` | ID of the VPC to create the cluster in | - |
 | `subnet_ids` | IDs of the (private) subnets for the cluster and its node groups | - |
@@ -14,6 +14,7 @@ An EKS cluster (via `terraform-aws-modules/eks/aws`) with a Graviton (ARM) CPU n
 | `cpu_node_group_min_size` / `max_size` / `desired_size` | CPU node group sizing | `0` / `2` / `2` |
 | `gpu_instance_type` | Instance type for the GPU-enabled node group | `g4dn.xlarge` |
 | `gpu_node_group_min_size` / `max_size` / `desired_size` | GPU node group sizing | `0` / `1` / `1` |
+| `gpu_node_taints` | Taints applied to the GPU node group, keyed by an arbitrary map key | `{ gpu_workload = { key = "gpu-workload", value = "true", effect = "NO_SCHEDULE" } }` |
 
 ## Outputs
 
