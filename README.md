@@ -1,4 +1,4 @@
-# Kubernetes Cluster Terraform Module for AWS EKS with AWS ALB Ingress Controller Setup
+# Kubernetes Terraform Module for AWS EKS
 
 [![Terraform](https://img.shields.io/badge/Terraform-7B42BC?style=flat&logo=terraform&logoColor=white)](https://www.terraform.io/)
 [![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat&logo=amazonaws&logoColor=white)](https://aws.amazon.com/)
