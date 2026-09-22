@@ -1,11 +1,20 @@
 # Kubernetes Cluster Terraform Module for AWS EKS with AWS ALB Ingress Controller Setup
 
+[![Terraform](https://img.shields.io/badge/Terraform-7B42BC?style=flat&logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat&logo=amazonaws&logoColor=white)](https://aws.amazon.com/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
+[![Helm](https://img.shields.io/badge/Helm-0F1689?style=flat&logo=helm&logoColor=white)](https://helm.sh/)
+
+
+
 A reusable Terraform module that provisions:
 
 - A VPC (public + private subnets across multiple AZs, single NAT gateway)
 - An EKS cluster with a CPU node group and a GPU node group
 - An ECR repository, and a permissions-boundary-scoped IAM deployment role/user for CI/CD
 - The AWS Load Balancer Controller, so `Ingress` resources with `ingressClassName: alb` provision an ALB out of the box
+
+This terraform module is available in public terraform registry as `danangan/k8s/aws`.
 
 Example usage:
 
@@ -30,7 +39,8 @@ provider "helm" {
 }
 
 module "platform" {
-  source = "github.com/danangan/terraform-aws-helm-k8s"
+  source  = "danangan/k8s/aws"
+  version = "~> 1.0"
 
   cluster_name = "my-other-project"
 }
@@ -47,12 +57,15 @@ If you'd rather avoid this, compose your own resources from the sub-modules in `
 In `aws/main.tf`:
 ```hcl
 module "network" {
-  source        = "github.com/danangan/terraform-aws-helm-k8s/modules/network"
-  cluster_name  = "my-cluster"
+  source  = "danangan/k8s/aws//modules/network"
+  version = "~> 1.0"
+
+  cluster_name = "my-cluster"
 }
 
 module "eks" {
-  source = "github.com/danangan/terraform-aws-helm-k8s/modules/eks"
+  source  = "danangan/k8s/aws//modules/eks"
+  version = "~> 1.0"
 
   cluster_name = "my-cluster"
 
@@ -61,13 +74,15 @@ module "eks" {
 }
 
 module "ecr" {
-  source = "github.com/danangan/terraform-aws-helm-k8s/modules/ecr"
+  source  = "danangan/k8s/aws//modules/ecr"
+  version = "~> 1.0"
 
   repository_name = "my-cluster-repo"
 }
 
 module "deployment" {
-  source = "github.com/danangan/terraform-aws-helm-k8s/modules/deployment"
+  source  = "danangan/k8s/aws//modules/deployment"
+  version = "~> 1.0"
 
   cluster_name          = "my-cluster"
   cluster_arn           = module.eks.cluster_arn
@@ -79,7 +94,8 @@ module "deployment" {
 In `k8s/main.tf`:
 ```hcl
 module "alb_controller" {
-  source = "github.com/danangan/terraform-aws-helm-k8s/modules/alb-controller"
+  source  = "danangan/k8s/aws//modules/alb-controller"
+  version = "~> 1.0"
 
   cluster_name = "my-cluster"
   vpc_id       = var.vpc_id # the `aws` root module's `network.vpc_id` output, passed in by hand or via remote state
