@@ -7,7 +7,7 @@
 
 This reusable Terraform module handles everything needed to stand up a production-ready Kubernetes cluster on AWS EKS:
 
-- A VPC (public + private subnets across multiple AZs, single NAT gateway by default - multi-AZ NAT is available via `enable_multi_az_nat_gateway`)
+- A VPC (public + private subnets across multiple AZs, Internet & NAT gateway`)
 - An EKS cluster with a CPU node group and a GPU node group
 - An ECR repository, and a permissions-boundary-scoped IAM deployment role/user for CI/CD
 - The AWS Load Balancer Controller, so `Ingress` resources with `ingressClassName: alb` provision an ALB out of the box
