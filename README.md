@@ -5,7 +5,7 @@
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 [![Helm](https://img.shields.io/badge/Helm-0F1689?style=flat&logo=helm&logoColor=white)](https://helm.sh/)
 
-A reusable Terraform module that provisions:
+This reusable Terraform module handles everything needed to stand up a production-ready Kubernetes cluster on AWS EKS:
 
 - A VPC (public + private subnets across multiple AZs, single NAT gateway by default - multi-AZ NAT is available via `enable_multi_az_nat_gateway`)
 - An EKS cluster with a CPU node group and a GPU node group
@@ -13,6 +13,8 @@ A reusable Terraform module that provisions:
 - The AWS Load Balancer Controller, so `Ingress` resources with `ingressClassName: alb` provision an ALB out of the box
 
 This module is published on the public Terraform Registry as [`danangan/k8s/aws`](https://registry.terraform.io/modules/danangan/k8s/aws/latest).
+
+Point it at your AWS account and you'll have a cluster ready for your containerized workloads in minutes - no manual wiring required.
 
 ## Contents
 
@@ -183,7 +185,7 @@ cd examples/demo-app
 ./deploy.sh
 ```
 
-Once the app is deployed, you can access it directly via the ALB DNS name. You can get this information via AWS console or via AWS CLI.
+Once deployed, the app is reachable at the ALB's DNS name - available in the AWS Console or via the AWS CLI.
 
 ### Tearing it down
 
