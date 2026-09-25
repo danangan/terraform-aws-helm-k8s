@@ -1,0 +1,23 @@
+# Auto Mode doesn't create an IngressClass. This one is named `alb`, like the
+# one the AWS Load Balancer Controller installs, so Ingresses with
+# `ingressClassName: alb` (e.g. the demo app's) work unchanged.
+#
+# Settings for the whole ALB go in IngressClassParams - Auto Mode ignores
+# annotations on the IngressClass itself.
+apiVersion: eks.amazonaws.com/v1
+kind: IngressClassParams
+metadata:
+  name: alb
+spec:
+  scheme: internet-facing
+---
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: alb
+spec:
+  controller: eks.amazonaws.com/alb
+  parameters:
+    apiGroup: eks.amazonaws.com
+    kind: IngressClassParams
+    name: alb

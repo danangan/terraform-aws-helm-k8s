@@ -37,6 +37,7 @@ provider "helm" {
 
 module "platform" {
   source = "danangan/k8s/aws"
+  version = "0.1.0"
 
   aws_region   = local.region
   cluster_name = local.cluster_name
@@ -61,4 +62,8 @@ module "platform" {
 
 output ecr_repository_url {
   value       = module.platform.ecr_repository_url
+}
+
+output "cluster_name" {
+  value = module.platform.cluster_name
 }

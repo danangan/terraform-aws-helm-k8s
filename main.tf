@@ -12,6 +12,8 @@ module "eks" {
 
   cluster_name       = var.cluster_name
   kubernetes_version = var.kubernetes_version
+  enable_auto_mode   = var.enable_auto_mode
+  extra_addons       = var.extra_addons
 
   vpc_id     = module.network.vpc_id
   subnet_ids = module.network.private_subnets
@@ -46,7 +48,17 @@ module "deployment" {
 module "alb_controller" {
   source = "./modules/alb-controller"
 
+  # Auto Mode has its own built-in ALB/NLB controller
+  count = var.enable_auto_mode ? 0 : 1
+
   aws_region   = var.aws_region
   cluster_name = var.cluster_name
   vpc_id       = module.network.vpc_id
+}
+
+# alb_controller gained a count - keep the controller already deployed on
+# existing clusters instead of destroying and recreating it
+moved {
+  from = module.alb_controller
+  to   = module.alb_controller[0]
 }

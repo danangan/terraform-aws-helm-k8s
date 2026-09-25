@@ -14,7 +14,12 @@ else
   exit 1
 fi
 
-ECR_REPO_URL="$(terraform -chdir=../demo-k8s-cluster output -raw ecr_repository_url)"
+# Terraform directory of the cluster to deploy to - pass ../demo-k8s-cluster-auto
+# to deploy to the Auto Mode example instead
+CLUSTER_DIR="${1:-../demo-k8s-cluster}"
+
+ECR_REPO_URL="$(terraform -chdir="${CLUSTER_DIR}" output -raw ecr_repository_url)"
+CLUSTER_NAME="$(terraform -chdir="${CLUSTER_DIR}" output -raw cluster_name)"
 REGISTRY="${ECR_REPO_URL%%/*}"
 TAG="$(date +%Y%m%d%H%M%S)"
 
@@ -29,7 +34,7 @@ echo "Building and pushing ${ECR_REPO_URL}:${TAG}..."
 "${CONTAINER_ENGINE}" push "${ECR_REPO_URL}:${TAG}"
 
 echo "Updating kubeconfig via aws cmd..."
-aws eks update-kubeconfig --region us-east-1 --name platform-cluster
+aws eks update-kubeconfig --region us-east-1 --name "${CLUSTER_NAME}"
 
 echo "Deploying via Helm..."
 helm upgrade --install app . \

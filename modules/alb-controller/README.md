@@ -4,6 +4,8 @@ Installs the AWS Load Balancer Controller (the modern replacement for the legacy
 
 Needs the `helm` provider configured - see the root module's README for the bootstrap catch this implies on a brand new cluster.
 
+Not needed on an EKS Auto Mode cluster, which has its own built-in ALB/NLB controller - the root module skips it when `enable_auto_mode = true`.
+
 ## Inputs
 
 | Name | Description | Default |
