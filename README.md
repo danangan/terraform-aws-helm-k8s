@@ -27,7 +27,7 @@ Point it at your AWS account and you'll have a cluster ready for your containeri
 - [Add-ons](#add-ons)
 - [EKS Auto Mode](#eks-auto-mode)
 - [Project structure](#project-structure)
-- [Trying it out (via the example)](#trying-it-out-via-the-example)
+- [Examples](#examples)
 
 ## Requirements
 
@@ -98,6 +98,16 @@ module "eks" {
   subnet_ids = module.network.private_subnets
 }
 
+module "storage" {
+  source  = "danangan/k8s/aws//modules/storage"
+  version = "~> 1.0"
+
+  cluster_name       = module.eks.cluster_name
+  kubernetes_version = "1.33"
+
+  depends_on = [module.eks] # the add-on needs the nodes up
+}
+
 module "ecr" {
   source  = "danangan/k8s/aws//modules/ecr"
   version = "~> 1.0"
@@ -147,7 +157,7 @@ With `enable_auto_mode = true` there's no GPU node group - apply [`examples/demo
 On the managed node groups (the default), the module installs these EKS add-ons:
 
 - `coredns`, `kube-proxy`, `vpc-cni` and `eks-pod-identity-agent`
-- `aws-ebs-csi-driver`, with its own IAM role through EKS Pod Identity. It also creates `ebs-csi-default-sc`, the cluster's default StorageClass, so PersistentVolumeClaims get gp3 EBS volumes. EKS's own `gp2` StorageClass is still there, but isn't the default.
+- `aws-ebs-csi-driver`, through the [`storage`](modules/storage/) sub-module, which follows [AWS's EBS CSI driver guide](https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html): an IAM role with `AmazonEBSCSIDriverPolicyV2` through EKS Pod Identity, then the add-on itself. It also creates `ebs-csi-default-sc`, the cluster's default StorageClass, so PersistentVolumeClaims get gp3 EBS volumes. EKS's own `gp2` StorageClass is still there, but isn't the default.
 
 Add more with `extra_addons`, keyed by add-on name. Each entry takes the same settings as an `addons` entry in [terraform-aws-modules/eks](https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest), such as `addon_version`, `configuration_values` or `pod_identity_association`:
 
@@ -165,32 +175,22 @@ module "platform" {
 }
 ```
 
-An entry named after a default add-on replaces that add-on's settings entirely - for `aws-ebs-csi-driver`, that includes its Pod Identity role. `extra_addons` is ignored with `enable_auto_mode = true`.
+An entry named after one of the four default add-ons above replaces that add-on's settings entirely - e.g. overriding `vpc-cni` drops its `before_compute = true`, so set it again. `extra_addons` is ignored with `enable_auto_mode = true`.
 
 ## EKS Auto Mode
 
-Set `enable_auto_mode = true` to run the cluster on [EKS Auto Mode](https://docs.aws.amazon.com/eks/latest/userguide/automode.html). EKS then launches, patches and replaces the nodes itself, and runs the cluster's core components for you:
+Set `enable_auto_mode = true` to run the cluster on [EKS Auto Mode](https://docs.aws.amazon.com/eks/latest/userguide/automode.html): EKS launches, patches and removes the EC2 nodes itself as pods need them, and runs networking, EBS storage and the ALB controller for you. The module then skips the node groups, add-ons and ALB controller.
 
-| | Default (`enable_auto_mode = false`) | Auto Mode (`enable_auto_mode = true`) |
-|---|---|---|
-| Nodes | `cpu` and `gpu` managed node groups, sized by the `cpu_*` / `gpu_*` inputs | Launched on demand from the built-in `general-purpose` and `system` node pools. The `cpu_*` / `gpu_*` inputs are ignored |
-| Add-ons | CoreDNS, kube-proxy, VPC CNI, Pod Identity agent and EBS CSI driver, plus `extra_addons` - see [Add-ons](#add-ons) | Built in. `extra_addons` is ignored |
-| Ingress | AWS Load Balancer Controller, installed via Helm | Built-in ALB/NLB controller - the `alb-controller` sub-module is skipped |
-| Persistent volumes | EBS CSI driver add-on, with `ebs-csi-default-sc` (gp3) as the default StorageClass | Built-in EBS support. Apply `storage-class.yaml` for a default gp3 StorageClass |
-| [Bootstrap catch](#the-bootstrap-catch) | First `apply` fails | Doesn't apply |
+Nodes come from node pools. EKS enables two built-in ones, `general-purpose` and `system`, but they only launch amd64 C/M/R instances - for anything else, add your own `NodePool` with `kubectl` once the cluster is up. The Auto Mode example has two to start from:
 
-**Cost:** on top of the EC2 price, AWS charges a management fee for every node Auto Mode launches - in us-east-1, about 12% of the on-demand price for most instance types, and about 8% for `g4dn.xlarge` (see [EKS pricing](https://aws.amazon.com/eks/pricing/)). Auto Mode also doesn't launch anything smaller than `medium`, so there's no `t4g.small`.
+- [`graviton-node-pool.yaml`](examples/demo-k8s-cluster-auto/auto-mode/graviton-node-pool.yaml) - arm64 instances, e.g. for images built on an Apple Silicon Mac
+- [`gpu-node-pool.yaml`](examples/demo-k8s-cluster-auto/auto-mode/gpu-node-pool.yaml) - `g4dn.xlarge` GPU nodes, tainted like the `gpu` node group
 
-**What you create yourself:** Auto Mode doesn't create an IngressClass, a StorageClass or a GPU node pool. The Auto Mode example ships manifests for them in [`examples/demo-k8s-cluster-auto/auto-mode/`](examples/demo-k8s-cluster-auto/auto-mode/) - apply them with `kubectl` once the cluster is up. They're kept out of Terraform on purpose: creating them from Terraform would need the `kubernetes` provider, and bring the bootstrap catch back.
+```
+kubectl apply -f examples/demo-k8s-cluster-auto/auto-mode/
+```
 
-| File | What it's for |
-|---|---|
-| `ingress-class.yaml` | An `alb` IngressClass backed by Auto Mode's ALB controller, so Ingresses with `ingressClassName: alb` keep working. Required for any Ingress |
-| `storage-class.yaml` | A default, encrypted `gp3` StorageClass for PersistentVolumeClaims |
-| `graviton-node-pool.yaml` | An arm64 node pool, tried before the built-in `general-purpose` pool (which is amd64 only). Needed for arm64 images, like the demo app's when built on an Apple Silicon Mac |
-| `gpu-node-pool.yaml` | A `g4dn.xlarge` node pool with the same `gpu-workload` taint as the `gpu` node group |
-
-**Switching an existing cluster:** uninstall apps that have an Ingress first (for the demo app, `./teardown.sh`), so the AWS Load Balancer Controller deletes their ALBs before Terraform removes it - otherwise those ALBs are left behind. Redeploy them after the switch; Auto Mode creates new ALBs, with new DNS names. Existing PersistentVolumes can't come along as they are: Auto Mode uses a different EBS provisioner (`ebs.csi.eks.amazonaws.com`), so volumes created by the EBS CSI driver add-on have to be migrated - see [AWS's migration guide](https://docs.aws.amazon.com/eks/latest/userguide/migrate-auto.html).
+That folder also has the IngressClass and StorageClass Auto Mode needs - see the [examples README](examples/README.md#eks-auto-mode-demo-k8s-cluster-auto).
 
 ## Project structure
 
@@ -200,81 +200,10 @@ modules/                 # The sub-modules it's composed of, usable on their own
                          # if you split the bootstrap catch across two root
                          # modules (see "The bootstrap catch" above)
   ...
-examples/
-  demo-k8s-cluster/      # A deployable example of k8s cluster
-  demo-k8s-cluster-auto/ # The same cluster on EKS Auto Mode
-    auto-mode/           # Manifests to apply once it's up
-  demo-app/              # A minimal FastAPI "hello world" service + Helm chart,
-                         # deployed onto the example cluster's Ingress.
+examples/                # Deployable example clusters and a demo app - see
+                         # "Examples" below
 ```
 
-## Trying it out (via the example)
+## Examples
 
-### Prerequisites
-
-- AWS CLI, configured with credentials that can manage the resources below
-- Terraform (>= 1.7.0)
-- kubectl
-- Helm
-- Docker (or another Docker-compatible CLI, e.g. Podman) - to build and push the demo app image
-
-### 1. Provision the cluster and the Ingress controller
-
-Log in with the AWS CLI first, so Terraform has credentials to work with - e.g. `aws login` (requires AWS CLI >= 2.32.0) for browser-based console credentials, `aws sso login` if you use IAM Identity Center, or `aws configure` for a static access key/secret:
-
-```
-aws login
-```
-
-Then, from `examples/demo-k8s-cluster`:
-
-```
-cd examples/demo-k8s-cluster
-terraform init
-terraform apply
-```
-
-As mentioned in [The bootstrap catch](#the-bootstrap-catch) above, you'll hit an error on the first apply - just re-run `terraform apply` and it should succeed. Any subsequent update after the second apply works as expected.
-
-To try [EKS Auto Mode](#eks-auto-mode) instead, use `examples/demo-k8s-cluster-auto`. One `terraform apply` is enough there. Afterwards, point `kubectl` at the cluster and apply the Auto Mode manifests:
-
-```
-cd examples/demo-k8s-cluster-auto
-terraform init
-terraform apply
-aws eks update-kubeconfig --region us-east-1 --name platform-cluster-auto
-kubectl apply -f auto-mode/
-```
-
-### 2. Build and deploy the demo app
-
-The demo app (`examples/demo-app/`) is a FastAPI service built with `uv` inside its Dockerfile (no local `uv` install needed). Build its image, push it to the ECR repo Terraform just created, and roll it out with Helm:
-
-```
-cd examples/demo-app
-./deploy.sh
-```
-
-For the Auto Mode cluster, pass its directory: `./deploy.sh ../demo-k8s-cluster-auto`.
-
-Once deployed, the app is reachable at the ALB's DNS name - available in the AWS Console or via the AWS CLI.
-
-### Tearing it down
-
-Optionally uninstall the app first, so a clean `helm uninstall` is recorded before the cluster disappears from under it:
-
-```
-cd examples/demo-app
-./teardown.sh
-```
-
-Then tear down the cluster:
-
-```
-cd examples/demo-k8s-cluster   # or examples/demo-k8s-cluster-auto
-terraform destroy
-```
-
-This destroys everything (Ingress controller, EKS cluster, node groups, VPC, ECR, IAM) in one pass.
-
-If you created any PersistentVolumeClaims, delete them before destroying. Their EBS volumes are only deleted while the cluster is still running, so volumes still claimed at that point are left behind - and keep being billed.
+[`examples/`](examples/) has two deployable clusters - one on managed node groups, one on EKS Auto Mode - and a demo app to deploy onto either. The [examples README](examples/README.md) walks through provisioning them, deploying the app and tearing everything down.

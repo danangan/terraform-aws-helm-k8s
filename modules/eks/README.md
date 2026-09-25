@@ -2,7 +2,7 @@
 
 An EKS cluster (via `terraform-aws-modules/eks/aws`) with a Graviton (ARM) CPU node group and a GPU node group (tainted `gpu-workload=true:NoSchedule`, so only pods that tolerate it land there). AMI architecture for the CPU group is picked automatically from the instance type.
 
-Installs the `coredns`, `kube-proxy`, `vpc-cni`, `eks-pod-identity-agent` and `aws-ebs-csi-driver` add-ons, plus any in `extra_addons`. The EBS CSI driver gets an IAM role through EKS Pod Identity, and creates `ebs-csi-default-sc`, a default StorageClass for gp3 volumes.
+Installs the `coredns`, `kube-proxy`, `vpc-cni` and `eks-pod-identity-agent` add-ons, plus any in `extra_addons`. The EBS CSI driver is in the separate [`storage`](../storage/) sub-module.
 
 With `enable_auto_mode = true`, the cluster runs on EKS Auto Mode instead: no node groups or add-ons are created, and EKS launches nodes from its built-in `general-purpose` and `system` node pools. See the root README's "EKS Auto Mode" section.
 

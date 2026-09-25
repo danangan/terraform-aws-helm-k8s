@@ -23,7 +23,9 @@ provider "aws" {
 # either - one apply is enough.
 
 module "platform" {
-  source = "danangan/k8s/aws"
+  # The module at the repo root, so local changes are picked up. Outside this
+  # repo, use the registry instead: source = "danangan/k8s/aws"
+  source = "../.."
 
   aws_region   = local.region
   cluster_name = local.cluster_name

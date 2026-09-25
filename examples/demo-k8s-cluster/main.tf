@@ -36,8 +36,7 @@ provider "helm" {
 }
 
 module "platform" {
-  source = "danangan/k8s/aws"
-  version = "0.1.0"
+  source = "../.."
 
   aws_region   = local.region
   cluster_name = local.cluster_name

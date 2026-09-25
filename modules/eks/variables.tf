@@ -26,7 +26,7 @@ variable "enable_auto_mode" {
 }
 
 variable "extra_addons" {
-  description = "Extra EKS add-ons to install on the managed node groups, keyed by add-on name, on top of the defaults (coredns, kube-proxy, vpc-cni, eks-pod-identity-agent, aws-ebs-csi-driver). Entries take the same settings as terraform-aws-modules/eks's `addons`; a key matching a default add-on replaces its settings. Ignored when enable_auto_mode = true"
+  description = "Extra EKS add-ons to install on the managed node groups, keyed by add-on name, on top of the defaults (coredns, kube-proxy, vpc-cni, eks-pod-identity-agent). Entries take the same settings as terraform-aws-modules/eks's `addons`; a key matching a default add-on replaces its settings. Ignored when enable_auto_mode = true"
   # Mirrors terraform-aws-modules/eks's `addons` type (minus `name`) - unset
   # fields fall back to that module's defaults
   type = map(object({

@@ -30,6 +30,27 @@ module "eks" {
   gpu_node_taints             = var.gpu_node_taints
 }
 
+module "storage" {
+  source = "./modules/storage"
+
+  # Auto Mode has its own built-in EBS support
+  count = var.enable_auto_mode ? 0 : 1
+
+  cluster_name       = module.eks.cluster_name
+  kubernetes_version = var.kubernetes_version
+
+  # The add-on only becomes active once its controller pods are running, so
+  # wait for the node groups (and the Pod Identity agent) to be up
+  depends_on = [module.eks]
+}
+
+# v1.1.0 created the EBS CSI driver's role inside the eks sub-module - keep it
+# rather than deleting and recreating it
+moved {
+  from = module.eks.aws_iam_role.ebs_csi_driver[0]
+  to   = module.storage[0].aws_iam_role.ebs_csi_driver
+}
+
 module "ecr" {
   source = "./modules/ecr"
 
