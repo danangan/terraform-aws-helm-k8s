@@ -1,0 +1,32 @@
+# Stands in for the `cpu` managed node group. The built-in general-purpose pool
+# only launches amd64 instances, but the demo app's image is arm64 when built
+# on an Apple Silicon Mac - and Graviton is cheaper anyway.
+#
+# The higher weight makes Auto Mode try this pool before general-purpose.
+# `limits` caps the pool at 4 vCPUs in total, e.g. two t4g.medium nodes.
+# Instance categories are pinned to general-purpose ones, so GPU pods can't
+# land on an arm64 GPU instance (g5g) here instead of the `gpu` pool.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: graviton
+spec:
+  weight: 10
+  template:
+    spec:
+      nodeClassRef:
+        group: eks.amazonaws.com
+        kind: NodeClass
+        name: default
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["arm64"]
+        - key: eks.amazonaws.com/instance-category
+          operator: In
+          values: ["c", "m", "r", "t"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+  limits:
+    cpu: 4

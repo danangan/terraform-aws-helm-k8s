@@ -1,0 +1,28 @@
+# Stands in for the `gpu` managed node group - the built-in pools never launch
+# GPU instances. Same taint as the module's default `gpu_node_taints`, so pods
+# need the same toleration to land here. Nodes are launched only while a pod
+# requests `nvidia.com/gpu`, and `limits` caps the pool at one GPU.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gpu
+spec:
+  template:
+    spec:
+      nodeClassRef:
+        group: eks.amazonaws.com
+        kind: NodeClass
+        name: default
+      requirements:
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values: ["g4dn.xlarge"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+      taints:
+        - key: gpu-workload
+          value: "true"
+          effect: NoSchedule
+  limits:
+    nvidia.com/gpu: 1

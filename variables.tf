@@ -33,6 +33,43 @@ variable "kubernetes_version" {
   default     = "1.33"
 }
 
+variable "enable_auto_mode" {
+  description = "Run the cluster on EKS Auto Mode: EKS launches and manages the nodes (built-in general-purpose and system node pools) and runs the core add-ons, ALB/NLB controller and EBS CSI driver itself. When true, the cpu_* and gpu_* node group settings are ignored and the AWS Load Balancer Controller isn't installed, so nothing goes through the helm provider"
+  type        = bool
+  default     = false
+}
+
+variable "extra_addons" {
+  description = "Extra EKS add-ons to install on the managed node groups, keyed by add-on name, on top of the defaults (coredns, kube-proxy, vpc-cni, eks-pod-identity-agent, aws-ebs-csi-driver). Entries take the same settings as terraform-aws-modules/eks's `addons`; a key matching a default add-on replaces its settings. Ignored when enable_auto_mode = true"
+  # Mirrors terraform-aws-modules/eks's `addons` type (minus `name`) - unset
+  # fields fall back to that module's defaults
+  type = map(object({
+    before_compute       = optional(bool)
+    most_recent          = optional(bool)
+    addon_version        = optional(string)
+    configuration_values = optional(string)
+    namespace_config = optional(object({
+      namespace = string
+    }))
+    pod_identity_association = optional(list(object({
+      role_arn        = string
+      service_account = string
+    })))
+    preserve                    = optional(bool)
+    resolve_conflicts_on_create = optional(string)
+    resolve_conflicts_on_update = optional(string)
+    service_account_role_arn    = optional(string)
+    timeouts = optional(object({
+      create = optional(string)
+      update = optional(string)
+      delete = optional(string)
+    }))
+    tags = optional(map(string))
+  }))
+  default  = {}
+  nullable = false
+}
+
 variable "cpu_instance_type" {
   description = "Instance type for the CPU-only node group"
   type        = string
@@ -40,7 +77,7 @@ variable "cpu_instance_type" {
 }
 
 variable "cpu_node_group_min_size" {
-  description = "Minimum CPU nodes; kept at 1+ since these nodes host cluster add-ons (coredns, kube-proxy, the EFS CSI driver)"
+  description = "Minimum CPU nodes; kept at 1+ since these nodes host cluster add-ons (coredns, kube-proxy, the EBS CSI driver)"
   type        = number
   default     = 0
 }
