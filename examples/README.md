@@ -28,6 +28,12 @@ terraform apply
 
 The first apply fails - run it again. See [the bootstrap catch](../README.md#the-bootstrap-catch).
 
+This example also sets `enable_efs_csi_driver = true`. To use EFS volumes, create the `efs-sc` StorageClass from this folder as shown in [EFS storage](../README.md#efs-storage), after:
+
+```
+aws eks update-kubeconfig --region us-east-1 --name platform-cluster
+```
+
 ### EKS Auto Mode (`demo-k8s-cluster-auto`)
 
 ```
@@ -65,4 +71,4 @@ cd ../demo-k8s-cluster   # or ../demo-k8s-cluster-auto
 terraform destroy
 ```
 
-Delete any PersistentVolumeClaims before `terraform destroy`, or their EBS volumes are left behind.
+Delete any PersistentVolumeClaims before `terraform destroy`, or their EBS volumes are left behind. The EFS file system is deleted with everything on it.

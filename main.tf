@@ -44,11 +44,23 @@ module "storage" {
   depends_on = [module.eks]
 }
 
-# v1.1.0 created the EBS CSI driver's role inside the eks sub-module - keep it
-# rather than deleting and recreating it
 moved {
   from = module.eks.aws_iam_role.ebs_csi_driver[0]
   to   = module.storage[0].aws_iam_role.ebs_csi_driver
+}
+
+module "efs" {
+  source = "./modules/efs"
+
+  count = var.enable_efs_csi_driver ? 1 : 0
+
+  cluster_name       = module.eks.cluster_name
+  kubernetes_version = var.kubernetes_version
+
+  vpc_id     = module.network.vpc_id
+  subnet_ids = module.network.private_subnets
+
+  depends_on = [module.eks]
 }
 
 module "ecr" {
@@ -75,11 +87,4 @@ module "alb_controller" {
   aws_region   = var.aws_region
   cluster_name = var.cluster_name
   vpc_id       = module.network.vpc_id
-}
-
-# alb_controller gained a count - keep the controller already deployed on
-# existing clusters instead of destroying and recreating it
-moved {
-  from = module.alb_controller
-  to   = module.alb_controller[0]
 }

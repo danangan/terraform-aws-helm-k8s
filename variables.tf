@@ -70,6 +70,12 @@ variable "extra_addons" {
   nullable = false
 }
 
+variable "enable_efs_csi_driver" {
+  description = "Install the Amazon EFS CSI driver add-on and create an EFS file system for it, for shared ReadWriteMany PersistentVolumes. Works with or without enable_auto_mode. Setting it back to false deletes the file system and everything on it"
+  type        = bool
+  default     = false
+}
+
 variable "cpu_instance_type" {
   description = "Instance type for the CPU-only node group"
   type        = string

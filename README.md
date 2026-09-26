@@ -12,6 +12,7 @@ This reusable Terraform module handles everything needed to stand up a productio
 - An ECR repository, and a permissions-boundary-scoped IAM deployment role/user for CI/CD
 - The AWS Load Balancer Controller, so `Ingress` resources with `ingressClassName: alb` provision an ALB out of the box
 - The EBS CSI driver, with gp3 as the default StorageClass for PersistentVolumeClaims
+- Optionally, the [EFS CSI driver](#efs-storage) and an EFS file system, for volumes many pods can share
 - Optionally, [EKS Auto Mode](#eks-auto-mode) instead of the node groups and controller above, so EKS manages the nodes, ingress and storage itself
 
 This module is published on the public Terraform Registry as [`danangan/k8s/aws`](https://registry.terraform.io/modules/danangan/k8s/aws/latest).
@@ -25,6 +26,7 @@ Point it at your AWS account and you'll have a cluster ready for your containeri
 - [The bootstrap catch](#the-bootstrap-catch)
 - [Deploying pods into the GPU nodes](#deploying-pods-into-the-gpu-nodes)
 - [Add-ons](#add-ons)
+- [EFS storage](#efs-storage)
 - [EKS Auto Mode](#eks-auto-mode)
 - [Project structure](#project-structure)
 - [Examples](#examples)
@@ -108,6 +110,20 @@ module "storage" {
   depends_on = [module.eks] # the add-on needs the nodes up
 }
 
+# Optional - see "EFS storage" below
+module "efs" {
+  source  = "danangan/k8s/aws//modules/efs"
+  version = "~> 1.0"
+
+  cluster_name       = module.eks.cluster_name
+  kubernetes_version = "1.33"
+
+  vpc_id     = module.network.vpc_id
+  subnet_ids = module.network.private_subnets
+
+  depends_on = [module.eks] # the add-on needs the nodes up
+}
+
 module "ecr" {
   source  = "danangan/k8s/aws//modules/ecr"
   version = "~> 1.0"
@@ -159,6 +175,8 @@ On the managed node groups (the default), the module installs these EKS add-ons:
 - `coredns`, `kube-proxy`, `vpc-cni` and `eks-pod-identity-agent`
 - `aws-ebs-csi-driver`, through the [`storage`](modules/storage/) sub-module, which follows [AWS's EBS CSI driver guide](https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html): an IAM role with `AmazonEBSCSIDriverPolicyV2` through EKS Pod Identity, then the add-on itself. It also creates `ebs-csi-default-sc`, the cluster's default StorageClass, so PersistentVolumeClaims get gp3 EBS volumes. EKS's own `gp2` StorageClass is still there, but isn't the default.
 
+The EFS CSI driver is opt-in - see [EFS storage](#efs-storage).
+
 Add more with `extra_addons`, keyed by add-on name. Each entry takes the same settings as an `addons` entry in [terraform-aws-modules/eks](https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest), such as `addon_version`, `configuration_values` or `pod_identity_association`:
 
 ```hcl
@@ -176,6 +194,63 @@ module "platform" {
 ```
 
 An entry named after one of the four default add-ons above replaces that add-on's settings entirely - e.g. overriding `vpc-cni` drops its `before_compute = true`, so set it again. `extra_addons` is ignored with `enable_auto_mode = true`.
+
+## EFS storage
+
+An EBS volume attaches to one node at a time. An [Amazon EFS](https://docs.aws.amazon.com/efs/latest/ug/whatisefs.html) file system can be mounted by many pods at once, across nodes and AZs (`ReadWriteMany`), and grows as you write to it. Set `enable_efs_csi_driver = true` to use one:
+
+```hcl
+module "platform" {
+  source  = "danangan/k8s/aws"
+  version = "~> 1.0"
+
+  cluster_name = "my-other-project"
+
+  enable_efs_csi_driver = true
+}
+```
+
+The module then creates the [`efs`](modules/efs/) sub-module's resources, which follow [AWS's EFS CSI driver guide](https://docs.aws.amazon.com/eks/latest/userguide/efs-csi.html):
+
+1. An IAM role with `AmazonEFSCSIDriverPolicy`, granted through EKS Pod Identity
+2. The `aws-efs-csi-driver` EKS add-on
+3. An encrypted EFS file system with a mount target in each private subnet, behind a security group that allows NFS (TCP 2049) in from the VPC
+
+It's off by default. It works with or without [EKS Auto Mode](#eks-auto-mode), which doesn't have EFS support built in.
+
+The EFS add-on can't create a StorageClass the way the EBS add-on does, so create one with `kubectl` once the cluster is up. The file system's ID is the module's `efs_file_system_id` output. Pass it through as an output of your own root module (as [`examples/demo-k8s-cluster`](examples/demo-k8s-cluster/main.tf) does), then run this from that module's folder:
+
+```
+kubectl apply -f - <<EOF
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: efs-sc
+provisioner: efs.csi.aws.com
+parameters:
+  provisioningMode: efs-ap
+  fileSystemId: $(terraform output -raw efs_file_system_id)
+  directoryPerms: "700"
+EOF
+```
+
+This uses [dynamic provisioning](https://github.com/kubernetes-sigs/aws-efs-csi-driver/blob/master/examples/kubernetes/efs/dynamic_provisioning/README.md): each PersistentVolumeClaim gets its own EFS access point, a directory on the file system that only that claim's pods can see. `ebs-csi-default-sc` stays the default StorageClass, so claims have to name `efs-sc`:
+
+```
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-data
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 5Gi # required by Kubernetes, but EFS doesn't enforce a size
+```
+
+**Warning:** setting `enable_efs_csi_driver` back to `false` deletes the file system and everything on it. Delete any claims that use `efs-sc` first, while the driver is still there to clean up their access points.
 
 ## EKS Auto Mode
 

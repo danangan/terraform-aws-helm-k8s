@@ -18,6 +18,11 @@ output "vpc_id" {
   value       = module.network.vpc_id
 }
 
+output "efs_file_system_id" {
+  description = "ID of the EFS file system for the EFS CSI driver - the fileSystemId of an EFS StorageClass. Null unless enable_efs_csi_driver is true"
+  value       = one(module.efs[*].file_system_id)
+}
+
 output "ecr_repository_url" {
   description = "URL of the app's ECR repository"
   value       = module.ecr.repository_url
